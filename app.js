@@ -55,14 +55,14 @@ document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{cart[b.dataset.p
 $('#clr').onclick=()=>{cart=[];drawCart()};$('#pay').onclick=checkout}
 function checkout(){method='Efectivo';let tot=total();
 modal(`<h3 id="tt">Cobrar ${money(tot)}</h3>
-<div class="row"><select id="adjt"><option value="d">Descuento %</option><option value="r">Recargo %</option></select><input id="adjv" type="number" inputmode="decimal" placeholder="0"></div>
+<div class="two" style="margin-bottom:6px"><select id="adjt"><option value="d">Descuento %</option><option value="r">Recargo %</option></select><input id="adjv" type="number" inputmode="decimal" placeholder="% (ej: 10)"></div><p class="mut" id="adjl" style="margin:0 0 10px;min-height:20px"></p>
 <div class="meth">${['Efectivo','Transferencia','Tarjeta','Fiado'].map(m=>`<button data-me="${m}" class="${m==method?'on':''}">${m}</button>`).join('')}</div>
 <div id="cli" hidden><label>Nombre del cliente<input id="cn"></label><label>Entrega ahora (opcional)<input id="ent" type="number" inputmode="decimal"></label></div>
 <div id="tr" hidden>${db.cfg.alias?`<p>Alias: <b>${esc(db.cfg.alias)}</b></p>`:''}${db.cfg.qr?`<img src="${db.cfg.qr}" style="width:100%;max-width:260px;display:block;margin:0 auto 10px;border-radius:10px">`:''}${!db.cfg.alias&&!db.cfg.qr?'<p class="mut">Cargá tu alias o QR en Más</p>':''}</div>
 <div id="cash"><label>Paga con<input id="rec" type="number" inputmode="decimal"></label><p class="big" id="chg"></p></div>
 <div class="row"><button id="ok">Confirmar venta</button><button class="ghost" onclick="closeModal()">Volver</button></div>`);
 const calc=()=>{const v=num('rec')-tot;$('#chg').textContent=num('rec')?(v>=0?'Vuelto '+money(v):'Faltan '+money(-v)):''};
-const upd=()=>{const a=Math.round(total()*num('adjv')*($('#adjt').value=='r'?1:-1))/100;tot=Math.round((total()+a)*100)/100;$('#tt').textContent='Cobrar '+money(tot);calc()};
+const upd=()=>{const a=Math.round(total()*num('adjv')*($('#adjt').value=='r'?1:-1))/100;tot=Math.round((total()+a)*100)/100;$('#tt').textContent='Cobrar '+money(tot);$('#adjl').textContent=a?(a<0?'Descuento: −':'Recargo: +')+money(Math.abs(a))+' ('+num('adjv')+'%)':'';calc()};
 $('#adjt').onchange=upd;$('#adjv').oninput=upd;$('#rec').oninput=calc;
 document.querySelectorAll('[data-me]').forEach(b=>b.onclick=()=>{method=b.dataset.me;document.querySelectorAll('[data-me]').forEach(x=>x.classList.toggle('on',x==b));$('#cash').hidden=method!='Efectivo';$('#cli').hidden=method!='Fiado';$('#tr').hidden=method!='Transferencia'});
 $('#ok').onclick=async()=>{const fi=method=='Fiado',cn=fi?$('#cn').value.trim():'';if(fi&&!cn)return toast('Poné el nombre del cliente');
@@ -176,7 +176,7 @@ $('#app').innerHTML=`<div class="card"><label>Nombre del negocio (sale en el tic
 <div class="card"><b>Clave de acceso</b><p class="mut">${db.cfg.pin?'Activada':'Sin clave'}</p><div class="row"><button id="pinb" class="ghost">${db.cfg.pin?'Cambiar o quitar clave':'Poner clave'}</button></div></div>
 <div class="card"><b>Backup</b><p class="mut">Último: ${db.last||'nunca'}</p>
 <div class="row"><button id="b1">Hacer backup ahora</button></div><div class="row"><button id="b5" class="ghost">Compartir backup (WhatsApp, Drive…)</button></div><div class="row"><button id="b2" class="ghost">Recuperar datos</button></div>
-<input type="file" id="file" accept=".json,application/json" hidden></div>
+<input type="file" id="file" accept=".json,.txt,application/json,text/plain" hidden></div>
 <div class="card"><b>Exportar ventas a Excel (CSV)</b><div class="row" style="margin-top:8px"><button id="b3" class="ghost">Descargar CSV</button></div></div>
 <div class="card"><b>Productos con poco stock (${low.length})</b>${low.map(p=>`<p>${esc(p.name)}: <b class="bad">${p.stock}</b></p>`).join('')||'<p class="mut">Todo bien</p>'}</div>`;
 $('#shop').onchange=async e=>{db.shop=e.target.value.trim();await save()};document.querySelectorAll('[data-c]').forEach(b=>b.onclick=async()=>{cobrarFiado(b.dataset.c)});$('#alias').onchange=async e=>{db.cfg.alias=e.target.value.trim();await save()};
@@ -193,9 +193,10 @@ function bajar(f){const a=document.createElement('a');a.href=URL.createObjectURL
 const fileOut=bajar;
 function bkFile(){return new File([JSON.stringify({...db,cfg:{...db.cfg,pin:''}})],'backup-negocio-'+today()+'.json',{type:'application/json'})}
 async function backup(){try{db.last=today();await save();bajar(bkFile());banner();toast('Backup guardado en Descargas ✓')}catch(e){toast('Error: '+e.message)}}
-async function compartir(){const f=bkFile();const movil=/Android|iPhone|iPad/i.test(navigator.userAgent);
-if(movil&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:f.name});return}catch(e){if(e.name=='AbortError')return}}
-bajar(f);toast(movil?'No se pudo abrir Compartir. Se guardó en Descargas':'En la compu se descarga. Mandalo desde WhatsApp Web con el clip 📎')}
+function bkTxt(){return new File([JSON.stringify({...db,cfg:{...db.cfg,pin:''}})],'backup-negocio-'+today()+'.txt',{type:'text/plain'})}
+async function compartir(){const f=bkTxt();const movil=/Android|iPhone|iPad/i.test(navigator.userAgent);
+if(movil&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:f.name});db.last=today();await save();banner();toast('Backup compartido ✓');return}catch(e){if(e.name=='AbortError')return}}
+bajar(bkFile());toast(movil?'No se pudo abrir Compartir. Se guardó en Descargas':'En la compu se descarga. Mandalo desde WhatsApp Web con el clip 📎')}
 function csv(){const r=['fecha,producto,cantidad,precio,costo,medio'];
 db.sales.forEach(s=>s.items.forEach(i=>r.push([new Date(s.ts).toISOString(),'"'+i.name.replace(/"/g,'""')+'"',i.qty,i.price,i.cost,s.method].join(','))));
 fileOut(new File([r.join('\n')],'ventas-'+today()+'.csv',{type:'text/csv'}))}
